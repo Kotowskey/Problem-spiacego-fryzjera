@@ -15,6 +15,7 @@ int waiting = 0;
 int total_chairs;
 int rejections = 0;
 int current_customer = -1;
+int waiting_customers[MAX_CHAIRS];
 
 void* barber_thread(void* arg) {
     while (1) {
@@ -23,7 +24,7 @@ void* barber_thread(void* arg) {
 
         // Zajęcie klienta z poczekalni
         waiting--;
-        current_customer = rand() % 1000; // Losowy numer klienta dla demonstracji
+        current_customer = waiting_customers[waiting];
 
         pthread_mutex_unlock(&mutex);
         sem_post(&barber); // Powiadomienie fryzjera
@@ -44,6 +45,7 @@ void* customer_thread(void* arg) {
 
     pthread_mutex_lock(&mutex);
     if (waiting < total_chairs) {
+        waiting_customers[waiting] = id;
         waiting++;
         printf("Klient %d w poczekalni. Poczekalnia: %d/%d\n", id, waiting, total_chairs);
         sem_post(&customers); // Nowy klient
