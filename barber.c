@@ -23,13 +23,16 @@ void* barber_thread(void* arg) {
         pthread_mutex_lock(&mutex);
 
         // Zajęcie klienta z poczekalni
+        current_customer = waiting_customers[0];
+        for (int i = 0; i < waiting - 1; i++) {
+            waiting_customers[i] = waiting_customers[i + 1];
+        }
         waiting--;
-        current_customer = waiting_customers[waiting];
 
         pthread_mutex_unlock(&mutex);
         sem_post(&barber); // Powiadomienie fryzjera
 
-        printf("Strzyżenie klienta: %d Poczekalnia: %d/%d [Fotel: %d]\n", rejections, waiting, total_chairs, current_customer);
+        printf("Strzyżenie klienta: %d Poczekalnia: %d/%d [Fotel: %d]\n", current_customer, waiting, total_chairs, current_customer);
 
         sleep(3); // Strzyżenie klienta
 
