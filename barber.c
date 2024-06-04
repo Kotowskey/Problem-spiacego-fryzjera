@@ -3,124 +3,99 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <time.h>
 
 #define MAX_CHAIRS 10
-#define HAIRCUT_TIME 3
 
-sem_t waitingRoom; // Semaphore for waiting room chairs
-sem_t barberChair; // Semaphore for the barber chair
-sem_t barberPillow; // Semaphore for the barber's sleep
-sem_t seatBelt; // Semaphore for the barber to signal haircut completion
-
-int waitingCustomers = 0;
-int totalCustomers = 0;
-int rejections = 0;
 pthread_mutex_t mutex;
+sem_t customers;  // Liczba oczekujących klientów
+sem_t barber;     // Liczba wolnych fryzjerów
 
-void *barber(void *arg) {
+int waiting = 0;
+int total_chairs;
+int rejections = 0;
+int current_customer = -1;
+
+void* barber_thread(void* arg) {
     while (1) {
-        // Wait for a customer to wake up the barber
-        sem_wait(&barberPillow);
-
-        // Lock the barber chair
-        sem_wait(&barberChair);
-
-        // Critical section - cut hair
+        sem_wait(&customers); // Czekaj na klienta
         pthread_mutex_lock(&mutex);
-        waitingCustomers--;
-        printf("Poczekalnia: %d/%d [Fotel: %d]\n", waitingCustomers, MAX_CHAIRS, totalCustomers - rejections - waitingCustomers);
+
+        // Zajęcie klienta z poczekalni
+        waiting--;
+        current_customer = rand() % 1000; // Losowy numer klienta dla demonstracji
+
         pthread_mutex_unlock(&mutex);
-        
-        printf("Strzyżenie klienta %d\n", totalCustomers - rejections - waitingCustomers);
+        sem_post(&barber); // Powiadomienie fryzjera
 
-        // Simulate hair cutting
-        sleep(HAIRCUT_TIME);
+        printf("Strzyżenie klienta: %d Poczekalnia: %d/%d [Fotel: %d]\n", rejections, waiting, total_chairs, current_customer);
 
-        // Release the barber chair
-        sem_post(&barberChair);
+        sleep(3); // Strzyżenie klienta
 
-        // Signal the customer that the haircut is done
-        sem_post(&seatBelt);
+        pthread_mutex_lock(&mutex);
+        current_customer = -1; // Fotel wolny
+        pthread_mutex_unlock(&mutex);
     }
     return NULL;
 }
 
-void *customer(void *num) {
-    int id = *(int *)num;
+void* customer_thread(void* arg) {
+    int id = *((int*)arg);
 
-    // Lock the mutex for critical section
     pthread_mutex_lock(&mutex);
-
-    if (waitingCustomers < MAX_CHAIRS) {
-        // Increment the count of waiting customers
-        waitingCustomers++;
-
-        printf("Klient %d wchodzi do poczekalni. Poczekalnia: %d/%d [Rezygnacja: %d]\n", id, waitingCustomers, MAX_CHAIRS, rejections);
-        
-        // Wake up the barber if sleeping
-        sem_post(&barberPillow);
-
-        // Release the mutex
+    if (waiting < total_chairs) {
+        waiting++;
+        printf("Klient %d w poczekalni. Poczekalnia: %d/%d\n", id, waiting, total_chairs);
+        sem_post(&customers); // Nowy klient
         pthread_mutex_unlock(&mutex);
-
-        // Wait for the barber chair to be free
-        sem_wait(&barberChair);
-
-        // Signal the barber that we are ready for a haircut
-        sem_post(&barberPillow);
-
-        // Wait for the barber to finish the haircut
-        sem_wait(&seatBelt);
+        sem_wait(&barber); // Czekaj na fryzjera
     } else {
-        // Increment the rejection count
         rejections++;
-        printf("Rezygnacja: %d Poczekalnia: %d/%d [Fotel: -]\n", rejections, waitingCustomers, MAX_CHAIRS);
-
-        // Release the mutex
+        printf("Rezygnacja: %d Poczekalnia: %d/%d [Fotel: %d]\n", rejections, waiting, total_chairs, current_customer);
         pthread_mutex_unlock(&mutex);
     }
+    free(arg);
     return NULL;
 }
 
-int main(int argc, char *argv[]) {
-    int infoMode = 0;
-    if (argc > 1 && strcmp(argv[1], "-info") == 0) {
-        infoMode = 1;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <number_of_chairs>\n", argv[0]);
+        return 1;
     }
 
-    pthread_t barberThread;
-    pthread_t customers[50];
+    total_chairs = atoi(argv[1]);
+    if (total_chairs > MAX_CHAIRS) {
+        fprintf(stderr, "Maksymalna liczba krzeseł to %d\n", MAX_CHAIRS);
+        return 1;
+    }
 
-    // Initialize semaphores
-    sem_init(&waitingRoom, 0, MAX_CHAIRS);
-    sem_init(&barberChair, 0, 1);
-    sem_init(&barberPillow, 0, 0);
-    sem_init(&seatBelt, 0, 0);
+    pthread_t barber_tid;
+    pthread_t customer_tid[100];
 
     pthread_mutex_init(&mutex, NULL);
+    sem_init(&customers, 0, 0);
+    sem_init(&barber, 0, 0);
 
-    // Create the barber thread
-    pthread_create(&barberThread, NULL, barber, NULL);
+    srand(time(NULL));
 
-    // Create customer threads
-    for (int i = 0; i < 50; i++) {
-        int *id = malloc(sizeof(int));
+    pthread_create(&barber_tid, NULL, barber_thread, NULL);
+
+    for (int i = 0; i < 100; i++) {
+        int* id = malloc(sizeof(int));
         *id = i + 1;
-        sleep(rand() % HAIRCUT_TIME);
-        pthread_create(&customers[i], NULL, customer, (void *)id);
+        usleep(rand() % 1000000); // Klienci przychodzą w losowym czasie
+        pthread_create(&customer_tid[i], NULL, customer_thread, id);
     }
 
-    // Wait for all customer threads to finish
-    for (int i = 0; i < 50; i++) {
-        pthread_join(customers[i], NULL);
+    for (int i = 0; i < 100; i++) {
+        pthread_join(customer_tid[i], NULL);
     }
 
-    // Destroy the mutex and semaphores
+    pthread_cancel(barber_tid);
     pthread_mutex_destroy(&mutex);
-    sem_destroy(&waitingRoom);
-    sem_destroy(&barberChair);
-    sem_destroy(&barberPillow);
-    sem_destroy(&seatBelt);
+    sem_destroy(&customers);
+    sem_destroy(&barber);
 
     return 0;
 }
