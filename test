@@ -87,13 +87,13 @@ int main(int argc, char** argv) {
 
     pthread_create(&barber_thread, NULL, barber, NULL);
 
-    for (int i = 0; i < customers_num; i++) {
+    for (int i = 0; i < 100; i++) {
         customer_ids[i] = i + 1;
         pthread_create(&customer_threads[i], NULL, customer, (void*)&customer_ids[i]);
-        sleep(1); // symulacja pojawiania się klientów
+        //sleep(1); // symulacja pojawiania się klientów
     }
 
-    for (int i = 0; i < customers_num; i++) {
+    for (int i = 0; i < 100; i++) {
         pthread_join(customer_threads[i], NULL);
     }
 
