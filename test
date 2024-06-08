@@ -35,7 +35,7 @@ void* barber(void* arg) {
         pthread_mutex_lock(&mutex);
         printf("Golibroda zakończył strzyżenie.\n");
         barber_chair = false;
-        pthread_cond_signal(&cond_customer);
+        pthread_cond_broadcast(&cond_customer);
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
