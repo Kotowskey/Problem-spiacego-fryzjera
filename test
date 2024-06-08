@@ -35,6 +35,7 @@ void* barber(void* arg) {
         pthread_mutex_lock(&mutex);
         printf("Golibroda zakończył strzyżenie.\n");
         barber_chair = false;
+        pthread_cond_signal(&cond_customer);
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
@@ -55,6 +56,7 @@ void* customer(void* arg) {
         }
 
         printf("Klient %d jest strzyżony.\n", id);
+        barber_chair = true;
     } else {
         printf("Klient %d odchodzi, brak miejsca.\n", id);
     }
