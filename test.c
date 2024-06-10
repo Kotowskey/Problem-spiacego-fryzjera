@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include <time.h> //Pseudolosowosc przychodzenia klientow
+#include <time.h> // Pseudolosowosc przychodzenia klientow
 
 #define NUM_CHAIRS 5
 
@@ -13,13 +13,9 @@ pthread_cond_t cond_customer;
 
 int waiting_customers = 0;
 bool barber_chair = false;
-srand(time(NULL));
-int czas_przychodzenia = rand();
 
-void time_wasting(int n){
-
-    for(int i=0; i<n; i++){}
-
+void time_wasting(int n) {
+    for (int i = 0; i < n; i++) {}
 }
 
 void* barber(void* arg) {
@@ -39,7 +35,6 @@ void* barber(void* arg) {
         pthread_mutex_unlock(&mutex);
 
         // Symulacja strzyżenia
-        //sleep(3);
         time_wasting(10000000);
 
         pthread_mutex_lock(&mutex);
@@ -97,14 +92,17 @@ int main(int argc, char** argv) {
 
     pthread_create(&barber_thread, NULL, barber, NULL);
 
-    for (int i = 0; i < 100; i++) {
+    srand(time(NULL));
+
+    for (int i = 0; i < customers_num; i++) {
         customer_ids[i] = i + 1;
         pthread_create(&customer_threads[i], NULL, customer, (void*)&customer_ids[i]);
-        //sleep(1); // symulacja pojawiania się klientów
-        time_wasting(czas_przychodzenia * 10000);
+        
+        int czas_przychodzenia = rand() % 5 + 1;
+        sleep(czas_przychodzenia);
     }
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < customers_num; i++) {
         pthread_join(customer_threads[i], NULL);
     }
 
