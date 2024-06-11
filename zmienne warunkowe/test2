@@ -16,6 +16,7 @@ int rezygnacje = 0;
 bool barber_chair = false;
 int num_chairs;
 bool print_info = false;
+int current_customer = -1; // Zmienna do przechowywania ID klienta aktualnie obsługiwanego
 
 typedef struct Node {
     int id;
@@ -55,7 +56,7 @@ void enqueue(Queue* q, int id) {
 
 int dequeue(Queue* q) {
     if (queue_is_empty(q)) {
-        return -1; // Kolejka jest pusta
+        return -1;
     }
     Node* temp = q->front;
     int id = temp->id;
@@ -68,8 +69,8 @@ int dequeue(Queue* q) {
     return id;
 }
 
-void print_status(int id) {
-    printf("Rezygnacja: %d Poczekalnia: %d/%d [Fotel: %d]\n", rezygnacje, waiting_queue.size, num_chairs, id);
+void print_status() {
+    printf("Rezygnacja: %d Poczekalnia: %d/%d [Fotel: %d]\n", rezygnacje, waiting_queue.size, num_chairs, current_customer);
     if (print_info) {
         printf("Kolejka oczekujących: ");
         Node* current = waiting_queue.front;
@@ -102,18 +103,20 @@ void* barber(void* arg) {
             pthread_cond_wait(&cond_barber, &mutex);
         }
 
-        int customer_id = dequeue(&waiting_queue);
+        current_customer = dequeue(&waiting_queue);
         barber_chair = true;
         pthread_cond_signal(&cond_customer);
+        print_status();
         pthread_mutex_unlock(&mutex);
 
         busy_wait(rand() % MAX_ITERATIONS);
 
         pthread_mutex_lock(&mutex);
-        printf("Fryzjer zakończył strzyżenie klienta %d.\n", customer_id);
+        printf("Fryzjer zakończył strzyżenie klienta %d.\n", current_customer);
         barber_chair = false;
+        current_customer = -1;
         pthread_cond_broadcast(&cond_customer);
-        print_status(customer_id);
+        print_status();
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
@@ -126,15 +129,15 @@ void* customer(void* arg) {
     if (waiting_queue.size < num_chairs) {
         enqueue(&waiting_queue, id);
         pthread_cond_signal(&cond_barber);
-        print_status(id);
+        print_status();
 
-        while (barber_chair) {
+        while (barber_chair && current_customer != id) {
             pthread_cond_wait(&cond_customer, &mutex);
         }
     } else {
         enqueue(&resigned_queue, id);
         rezygnacje++;
-        print_status(id);
+        print_status();
     }
 
     pthread_mutex_unlock(&mutex);
@@ -174,7 +177,9 @@ int main(int argc, char** argv) {
         pthread_create(&customer_thread, NULL, customer, id_ptr);
         customer_id++;
 
-        usleep((rand() % 100 + 1) * 1000); // Random delay between 0 and 100ms
+        // Klienci przychodzą w losowych odstępach czasu
+        busy_wait((rand() % (MAX_ITERATIONS / 10)) + (MAX_ITERATIONS / 10));
+
         free(id_ptr);
     }
 
