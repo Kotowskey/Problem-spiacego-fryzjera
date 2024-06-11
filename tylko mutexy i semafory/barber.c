@@ -44,8 +44,8 @@ void print_info() {
 
 void* barber_thread(void* arg) {
     while (1) {
-        printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
         sem_wait(&customers); // Czekaj na klienta
+        printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
         pthread_mutex_lock(&mutex);
 
         // Zajęcie klienta z poczekalni
@@ -69,6 +69,7 @@ void* barber_thread(void* arg) {
     }
     return NULL;
 }
+
 
 void* customer_thread(void* arg) {
     int id = *((int*)arg);
