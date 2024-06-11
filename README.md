@@ -1,6 +1,6 @@
 # Funkcja marnująca czas
 
-```cpp
+```c
 #define MAX_ITERATIONS 1000000000
 
 void busy_wait(int iterations) {
