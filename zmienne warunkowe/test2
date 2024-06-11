@@ -1,0 +1,173 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <stdbool.h>
+#include <time.h>
+#include <math.h>
+
+#define MAX_ITERATIONS 1000000000
+
+pthread_mutex_t mutex;
+pthread_cond_t cond_barber;
+pthread_cond_t cond_customer;
+
+int waiting_customers = 0;
+int rezygnacje = 0;
+bool barber_chair = false;
+int num_chairs;
+
+typedef struct Node {
+    int customer_id;
+    struct Node* next;
+} Node;
+
+Node* head = NULL;
+Node* tail = NULL;
+
+void enqueue(int customer_id) {
+    Node* new_node = (Node*)malloc(sizeof(Node));
+    if (new_node == NULL) {
+        perror("Failed to allocate memory for new node");
+        exit(EXIT_FAILURE);
+    }
+    new_node->customer_id = customer_id;
+    new_node->next = NULL;
+    if (tail == NULL) {
+        head = tail = new_node;
+    } else {
+        tail->next = new_node;
+        tail = new_node;
+    }
+}
+
+int dequeue() {
+    if (head == NULL) {
+        return -1;
+    }
+    int customer_id = head->customer_id;
+    Node* temp = head;
+    head = head->next;
+    if (head == NULL) {
+        tail = NULL;
+    }
+    free(temp);
+    return customer_id;
+}
+
+void busy_wait(int iterations) {
+    for (volatile int i = 0; i < iterations; i++) {
+        int sum = sqrt(i);
+    }
+}
+
+void* barber(void* arg) {
+    while (1) {
+        pthread_mutex_lock(&mutex);
+
+        while (waiting_customers == 0) {
+            printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
+            pthread_cond_wait(&cond_barber, &mutex);
+        }
+
+        int customer_id = dequeue();
+        waiting_customers--;
+        barber_chair = true;
+
+        printf("Fryzjer zaczyna strzyc klienta %d...\n", customer_id);
+        pthread_cond_signal(&cond_customer);
+        pthread_mutex_unlock(&mutex);
+
+        // Simulate haircut
+        busy_wait(rand() % MAX_ITERATIONS);
+
+        pthread_mutex_lock(&mutex);
+        printf("Fryzjer zakończył strzyżenie klienta %d.\n", customer_id);
+        barber_chair = false;
+        pthread_cond_broadcast(&cond_customer);
+        pthread_mutex_unlock(&mutex);
+    }
+    return NULL;
+}
+
+void* customer(void* arg) {
+    int id = *(int*)arg;
+    pthread_mutex_lock(&mutex);
+
+    if (waiting_customers < num_chairs) {
+        enqueue(id);
+        waiting_customers++;
+        pthread_cond_signal(&cond_barber);
+
+        while (id != head->customer_id || barber_chair) {
+            pthread_cond_wait(&cond_customer, &mutex);
+        }
+
+        barber_chair = true;
+        printf("Rezygnacja: %d Poczekalnia: %d/%d, [Fotel: %d]\n", rezygnacje, waiting_customers, num_chairs, id);
+    } else {
+        rezygnacje++;
+        printf("Klient %d odchodzi, brak miejsca.\n", id);
+    }
+
+    pthread_mutex_unlock(&mutex);
+    return NULL;
+}
+
+int main(int argc, char** argv) {
+    if (argc != 2) {
+        printf("Podaj prawidłową liczbę argumentów!\n");
+        return EXIT_FAILURE;
+    }
+
+    num_chairs = atoi(argv[1]);
+    if (num_chairs <= 0) {
+        printf("Liczba krzeseł musi być większa niż 0!\n");
+        return EXIT_FAILURE;
+    }
+
+    pthread_t barber_thread;
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond_barber, NULL);
+    pthread_cond_init(&cond_customer, NULL);
+
+    if (pthread_create(&barber_thread, NULL, barber, NULL) != 0) {
+        perror("Failed to create barber thread");
+        return EXIT_FAILURE;
+    }
+
+    int customer_id = 1;
+
+    srand(time(NULL)); // Seed for random number generation
+
+    while (1) {
+        pthread_t customer_thread;
+        int *id = malloc(sizeof(int));
+        if (id == NULL) {
+            perror("Failed to allocate memory for customer id");
+            exit(EXIT_FAILURE);
+        }
+        *id = customer_id;
+        if (pthread_create(&customer_thread, NULL, customer, id) != 0) {
+            perror("Failed to create customer thread");
+            free(id);
+            continue;
+        }
+        customer_id++;
+        busy_wait(rand() % MAX_ITERATIONS);
+    }
+
+    if (pthread_cancel(barber_thread) != 0) {
+        perror("Failed to cancel barber thread");
+    }
+
+    if (pthread_join(barber_thread, NULL) != 0) {
+        perror("Failed to join barber thread");
+    }
+
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&cond_barber);
+    pthread_cond_destroy(&cond_customer);
+
+    return EXIT_SUCCESS;
+}
