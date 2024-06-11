@@ -6,7 +6,7 @@
 #include <time.h> //Do pseudolosowosci funkcji marnujacej czas
 #include <math.h> //Do funkcji marnującej czas
 
-#define MAX_ITERATIONS 10000 //Zmiana wartosci przyspieszy/spowolni przychodzenie klientow i czas strzyżenia
+#define MAX_ITERATIONS 100000000 //Zmiana wartosci przyspieszy/spowolni przychodzenie klientow i czas strzyżenia
 
 pthread_mutex_t mutex;
 pthread_cond_t cond_barber;
