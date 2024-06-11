@@ -6,19 +6,23 @@
 #include <time.h> // Pseudolosowosc przychodzenia klientow
 #include <math.h>
 
+#define MAX_ITERATIONS 1000000000
+
 pthread_mutex_t mutex;
 pthread_cond_t cond_barber;
 pthread_cond_t cond_customer;
 
 int waiting_customers = 0;
+int rezygnacje = 0;
 bool barber_chair = false;
 int num_chairs;
 
-void time_wasting(int n) {
-    double sum = 0;
-    for (int i = 0; i < n; i++) {
-        sum += sqrt(i) + cos(i) + tan(i) + sqrt(10061661000);
-    }
+
+
+void busy_wait(int iterations) {
+    for (volatile int i = 0; i < iterations; i++){
+        int sum = sqrt(i);
+    };
 }
 
 void* barber(void* arg) {
@@ -26,11 +30,11 @@ void* barber(void* arg) {
         pthread_mutex_lock(&mutex);
 
         while (waiting_customers == 0) {
-            printf("Golibroda śpi...\n");
+            printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
             pthread_cond_wait(&cond_barber, &mutex);
         }
 
-        printf("Golibroda zaczyna strzyc...\n");
+        printf("Fryzjer zaczyna strzyc...\n");
         waiting_customers--;
         barber_chair = true;
 
@@ -38,10 +42,11 @@ void* barber(void* arg) {
         pthread_mutex_unlock(&mutex);
 
         // Symulacja strzyżenia
-        time_wasting(10000000);
+        //time_wasting(10000000);
+        busy_wait(rand() % MAX_ITERATIONS);
 
         pthread_mutex_lock(&mutex);
-        printf("Golibroda zakończył strzyżenie.\n");
+        printf("Fryzjer zakończył strzyżenie.\n");
         barber_chair = false;
         pthread_cond_broadcast(&cond_customer);
         pthread_mutex_unlock(&mutex);
@@ -54,7 +59,7 @@ void* customer(void* arg) {
     pthread_mutex_lock(&mutex);
 
     if (waiting_customers < num_chairs) {
-        printf("Klient %d w poczekalni. Poczekalnia: %d/%d\n", id, waiting_customers, num_chairs);
+        //printf("Klient %d w poczekalni. Poczekalnia: %d/%d\n", id, waiting_customers, num_chairs);
         waiting_customers++;
 
         pthread_cond_signal(&cond_barber);
@@ -63,10 +68,12 @@ void* customer(void* arg) {
             pthread_cond_wait(&cond_customer, &mutex);
         }
 
-        printf("Klient %d jest strzyżony.\n", id);
+        //printf("Klient %d jest strzyżony.\n", id);
+        printf("Rezygnacja: %d Poczekalnia: %d/%d, [Fotel: %d]\n", rezygnacje, waiting_customers, num_chairs, id);
         barber_chair = true;
     } else {
-        printf("Klient %d odchodzi, brak miejsca.\n", id);
+        //printf("Klient %d odchodzi, brak miejsca.\n", id);
+        rezygnacje++;
     }
 
     pthread_mutex_unlock(&mutex);
@@ -98,7 +105,8 @@ int main(int argc, char** argv) {
     while (1) {
         pthread_create(&customer_thread, NULL, customer, &customer_id);
         customer_id++;
-        sleep(1); // symulacja pojawiania się klientów
+        busy_wait(rand() % MAX_ITERATIONS);
+        //sleep(1);
     }
 
     pthread_cancel(barber_thread);
