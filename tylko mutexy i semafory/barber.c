@@ -5,9 +5,10 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define MAX_CHAIRS 10
-#define BUSY_WAIT_ITERATIONS 100000000
+#define MAX_ITERATIONS 1000000000
 
 pthread_mutex_t mutex;
 sem_t customers;  // Liczba oczekujących klientów
@@ -57,10 +58,10 @@ void* barber_thread(void* arg) {
         pthread_mutex_unlock(&mutex);
         sem_post(&barber); // Powiadomienie fryzjera
 
-        printf("Strzyżenie klienta: %d Poczekalnia: %d/%d [Fotel: %d]\n", current_customer, waiting, total_chairs, current_customer);
+        printf("Strzyżenie klienta: %d\n", current_customer);
         print_info();
 
-        busy_wait(BUSY_WAIT_ITERATIONS); // Strzyżenie klienta
+        busy_wait(rand() % MAX_ITERATIONS); // Strzyżenie klienta
 
         pthread_mutex_lock(&mutex);
         current_customer = -1; // Fotel wolny
@@ -123,7 +124,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < 100; i++) {
         int* id = malloc(sizeof(int));
         *id = i + 1;
-        busy_wait(rand() % (BUSY_WAIT_ITERATIONS * 10)); // Klienci przychodzą w losowym czasie (od 0 do 3 jednostek czasu)
+        busy_wait(rand() % MAX_ITERATIONS); // Klienci przychodzą w losowym czasie
         pthread_create(&customer_tid[i], NULL, customer_thread, id);
     }
 
