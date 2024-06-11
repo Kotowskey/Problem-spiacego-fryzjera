@@ -6,7 +6,7 @@
 #include <time.h>
 #include <math.h>
 
-#define MAX_ITERATIONS 1000000000
+#define MAX_ITERATIONS 10000
 
 pthread_mutex_t mutex;
 pthread_cond_t cond_barber;
@@ -90,7 +90,7 @@ void print_status() {
 
 void busy_wait(int iterations) {
     for (volatile int i = 0; i < iterations; i++) {
-        int sum = sqrt(i);
+        int sum = sqrt(i) / sin(i);
     }
 }
 
@@ -151,8 +151,8 @@ int main(int argc, char** argv) {
     }
 
     num_chairs = atoi(argv[1]);
-    if (num_chairs <= 0) {
-        printf("Liczba krzeseł musi być większa niż 0!\n");
+    if (num_chairs <= 0 || num_chairs > 10) {
+        printf("Bledna liczba krzesel!\n");
         return EXIT_FAILURE;
     }
 
