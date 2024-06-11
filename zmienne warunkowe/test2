@@ -71,6 +71,11 @@ void* barber(void* arg) {
         }
 
         int customer_id = dequeue();
+        if (customer_id == -1) {
+            // This should never happen as we check waiting_customers > 0
+            pthread_mutex_unlock(&mutex);
+            continue;
+        }
         waiting_customers--;
         barber_chair = true;
 
@@ -111,6 +116,7 @@ void* customer(void* arg) {
     }
 
     pthread_mutex_unlock(&mutex);
+    free(arg);  // Free the allocated memory for the customer ID
     return NULL;
 }
 
