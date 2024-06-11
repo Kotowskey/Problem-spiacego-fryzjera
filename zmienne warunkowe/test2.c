@@ -36,11 +36,11 @@ void queue_init(Queue* q) {
     q->front = q->rear = NULL;
     q->size = 0;
 }
-
+//Upewniamy sie ze kolejka jest pusta
 bool queue_is_empty(Queue* q) {
     return q->size == 0;
 }
-
+//Dodajemy do kolejki
 void enqueue(Queue* q, int id) {
     Node* new_node = (Node*)malloc(sizeof(Node));
     new_node->id = id;
@@ -53,7 +53,7 @@ void enqueue(Queue* q, int id) {
     }
     q->size++;
 }
-
+//Czyscimy kolejke
 int dequeue(Queue* q) {
     if (queue_is_empty(q)) {
         return -1;
@@ -68,7 +68,7 @@ int dequeue(Queue* q) {
     q->size--;
     return id;
 }
-
+//Wyswietlanie statusu, rowniez z parametrem -info
 void print_status() {
     printf("Rezygnacja: %d Poczekalnia: %d/%d [Fotel: %d]\n", rezygnacje, waiting_queue.size, num_chairs, current_customer);
     if (print_info) {
@@ -88,7 +88,7 @@ void print_status() {
     }
 }
 
-void busy_wait(int iterations) {
+void busy_wait(int iterations) { //Proste marnowanie czasu
     for (volatile int i = 0; i < iterations; i++) {
         int sum = sqrt(i) / sin(i);
     }
@@ -98,21 +98,21 @@ void* barber(void* arg) {
     while (1) {
         pthread_mutex_lock(&mutex);
 
-        while (queue_is_empty(&waiting_queue)) {
+        while (queue_is_empty(&waiting_queue)) {//Fryzjer moze odpoczac
             printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
             pthread_cond_wait(&cond_barber, &mutex);
         }
 
         current_customer = dequeue(&waiting_queue);
         barber_chair = true;
-        pthread_cond_signal(&cond_customer);
+        pthread_cond_signal(&cond_customer); //Rozpoczynamy ciecie
         print_status();
         pthread_mutex_unlock(&mutex);
 
         busy_wait(rand() % MAX_ITERATIONS); //Fryzjer wykonuje swoja prace w pseudolosowym czasie
 
         pthread_mutex_lock(&mutex);
-        printf("Fryzjer zakończył strzyżenie klienta %d.\n", current_customer);
+        printf("Fryzjer zakończył strzyżenie klienta %d.\n", current_customer); //Konczymy strzyzenie, odblokowujemy mutexy, zwalniamy fotel
         barber_chair = false;
         pthread_cond_broadcast(&cond_customer);
         print_status();
@@ -126,14 +126,14 @@ void* customer(void* arg) {
     pthread_mutex_lock(&mutex);
 
     if (waiting_queue.size < num_chairs) {
-        enqueue(&waiting_queue, id);
-        pthread_cond_signal(&cond_barber);
+        enqueue(&waiting_queue, id); //Dodanie klienta do kolejki
+        pthread_cond_signal(&cond_barber); //Przekazanie klienta do Fryzjerka
         print_status();
 
-        while (barber_chair && current_customer != id) {
+        while (barber_chair && current_customer != id) { //Oczekiwanie na swoja kolej
             pthread_cond_wait(&cond_customer, &mutex);
         }
-    } else {
+    } else { //Rezygnacja z uslugi
         enqueue(&resigned_queue, id);
         rezygnacje++;
         print_status();
