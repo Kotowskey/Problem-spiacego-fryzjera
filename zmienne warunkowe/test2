@@ -12,47 +12,58 @@ pthread_mutex_t mutex;
 pthread_cond_t cond_barber;
 pthread_cond_t cond_customer;
 
-int waiting_customers = 0;
 int rezygnacje = 0;
 bool barber_chair = false;
 int num_chairs;
 
 typedef struct Node {
-    int customer_id;
+    int id;
     struct Node* next;
 } Node;
 
-Node* head = NULL;
-Node* tail = NULL;
+typedef struct Queue {
+    Node* front;
+    Node* rear;
+    int size;
+} Queue;
 
-void enqueue(int customer_id) {
-    Node* new_node = (Node*)malloc(sizeof(Node));
-    if (new_node == NULL) {
-        perror("Failed to allocate memory for new node");
-        exit(EXIT_FAILURE);
-    }
-    new_node->customer_id = customer_id;
-    new_node->next = NULL;
-    if (tail == NULL) {
-        head = tail = new_node;
-    } else {
-        tail->next = new_node;
-        tail = new_node;
-    }
+Queue waiting_queue;
+
+void queue_init(Queue* q) {
+    q->front = q->rear = NULL;
+    q->size = 0;
 }
 
-int dequeue() {
-    if (head == NULL) {
-        return -1;
+bool queue_is_empty(Queue* q) {
+    return q->size == 0;
+}
+
+void enqueue(Queue* q, int id) {
+    Node* new_node = (Node*)malloc(sizeof(Node));
+    new_node->id = id;
+    new_node->next = NULL;
+    if (q->rear == NULL) {
+        q->front = q->rear = new_node;
+    } else {
+        q->rear->next = new_node;
+        q->rear = new_node;
     }
-    int customer_id = head->customer_id;
-    Node* temp = head;
-    head = head->next;
-    if (head == NULL) {
-        tail = NULL;
+    q->size++;
+}
+
+int dequeue(Queue* q) {
+    if (queue_is_empty(q)) {
+        return -1; // Kolejka jest pusta
+    }
+    Node* temp = q->front;
+    int id = temp->id;
+    q->front = q->front->next;
+    if (q->front == NULL) {
+        q->rear = NULL;
     }
     free(temp);
-    return customer_id;
+    q->size--;
+    return id;
 }
 
 void busy_wait(int iterations) {
@@ -65,25 +76,18 @@ void* barber(void* arg) {
     while (1) {
         pthread_mutex_lock(&mutex);
 
-        while (waiting_customers == 0) {
+        while (queue_is_empty(&waiting_queue)) {
             printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
             pthread_cond_wait(&cond_barber, &mutex);
         }
 
-        int customer_id = dequeue();
-        if (customer_id == -1) {
-            // This should never happen as we check waiting_customers > 0
-            pthread_mutex_unlock(&mutex);
-            continue;
-        }
-        waiting_customers--;
-        barber_chair = true;
-
+        int customer_id = dequeue(&waiting_queue);
         printf("Fryzjer zaczyna strzyc klienta %d...\n", customer_id);
+
+        barber_chair = true;
         pthread_cond_signal(&cond_customer);
         pthread_mutex_unlock(&mutex);
 
-        // Simulate haircut
         busy_wait(rand() % MAX_ITERATIONS);
 
         pthread_mutex_lock(&mutex);
@@ -99,24 +103,24 @@ void* customer(void* arg) {
     int id = *(int*)arg;
     pthread_mutex_lock(&mutex);
 
-    if (waiting_customers < num_chairs) {
-        enqueue(id);
-        waiting_customers++;
+    if (waiting_queue.size < num_chairs) {
+        enqueue(&waiting_queue, id);
+        printf("Klient %d w poczekalni. Poczekalnia: %d/%d\n", id, waiting_queue.size, num_chairs);
+
         pthread_cond_signal(&cond_barber);
 
-        while (id != head->customer_id || barber_chair) {
+        while (barber_chair) {
             pthread_cond_wait(&cond_customer, &mutex);
         }
 
+        printf("Klient %d jest strzyżony.\n", id);
         barber_chair = true;
-        printf("Rezygnacja: %d Poczekalnia: %d/%d, [Fotel: %d]\n", rezygnacje, waiting_customers, num_chairs, id);
     } else {
-        rezygnacje++;
         printf("Klient %d odchodzi, brak miejsca.\n", id);
+        rezygnacje++;
     }
 
     pthread_mutex_unlock(&mutex);
-    free(arg);  // Free the allocated memory for the customer ID
     return NULL;
 }
 
@@ -136,40 +140,23 @@ int main(int argc, char** argv) {
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond_barber, NULL);
     pthread_cond_init(&cond_customer, NULL);
+    queue_init(&waiting_queue);
 
-    if (pthread_create(&barber_thread, NULL, barber, NULL) != 0) {
-        perror("Failed to create barber thread");
-        return EXIT_FAILURE;
-    }
+    pthread_create(&barber_thread, NULL, barber, NULL);
 
     int customer_id = 1;
-
-    srand(time(NULL)); // Seed for random number generation
-
     while (1) {
         pthread_t customer_thread;
-        int *id = malloc(sizeof(int));
-        if (id == NULL) {
-            perror("Failed to allocate memory for customer id");
-            exit(EXIT_FAILURE);
-        }
-        *id = customer_id;
-        if (pthread_create(&customer_thread, NULL, customer, id) != 0) {
-            perror("Failed to create customer thread");
-            free(id);
-            continue;
-        }
+        int* id_ptr = malloc(sizeof(int));
+        *id_ptr = customer_id;
+        pthread_create(&customer_thread, NULL, customer, id_ptr);
         customer_id++;
         busy_wait(rand() % MAX_ITERATIONS);
+        free(id_ptr); // zwolnienie pamięci alokowanej dla id
     }
 
-    if (pthread_cancel(barber_thread) != 0) {
-        perror("Failed to cancel barber thread");
-    }
-
-    if (pthread_join(barber_thread, NULL) != 0) {
-        perror("Failed to join barber thread");
-    }
+    pthread_cancel(barber_thread);
+    pthread_join(barber_thread, NULL);
 
     pthread_mutex_destroy(&mutex);
     pthread_cond_destroy(&cond_barber);
