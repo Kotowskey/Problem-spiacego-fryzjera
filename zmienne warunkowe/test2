@@ -15,6 +15,7 @@ pthread_cond_t cond_customer;
 int rezygnacje = 0;
 bool barber_chair = false;
 int num_chairs;
+bool print_info = false;
 
 typedef struct Node {
     int id;
@@ -28,6 +29,7 @@ typedef struct Queue {
 } Queue;
 
 Queue waiting_queue;
+Queue resigned_queue;
 
 void queue_init(Queue* q) {
     q->front = q->rear = NULL;
@@ -66,6 +68,25 @@ int dequeue(Queue* q) {
     return id;
 }
 
+void print_status(int id) {
+    printf("Rezygnacja: %d Poczekalnia: %d/%d [Fotel: %d]\n", rezygnacje, waiting_queue.size, num_chairs, id);
+    if (print_info) {
+        printf("Kolejka oczekujących: ");
+        Node* current = waiting_queue.front;
+        while (current != NULL) {
+            printf("%d ", current->id);
+            current = current->next;
+        }
+        printf("\nLista rezygnacji: ");
+        current = resigned_queue.front;
+        while (current != NULL) {
+            printf("%d ", current->id);
+            current = current->next;
+        }
+        printf("\n");
+    }
+}
+
 void busy_wait(int iterations) {
     for (volatile int i = 0; i < iterations; i++) {
         int sum = sqrt(i);
@@ -82,8 +103,6 @@ void* barber(void* arg) {
         }
 
         int customer_id = dequeue(&waiting_queue);
-        printf("Fryzjer zaczyna strzyc klienta %d...\n", customer_id);
-
         barber_chair = true;
         pthread_cond_signal(&cond_customer);
         pthread_mutex_unlock(&mutex);
@@ -94,6 +113,7 @@ void* barber(void* arg) {
         printf("Fryzjer zakończył strzyżenie klienta %d.\n", customer_id);
         barber_chair = false;
         pthread_cond_broadcast(&cond_customer);
+        print_status(customer_id);
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
@@ -105,19 +125,16 @@ void* customer(void* arg) {
 
     if (waiting_queue.size < num_chairs) {
         enqueue(&waiting_queue, id);
-        printf("Klient %d w poczekalni. Poczekalnia: %d/%d\n", id, waiting_queue.size, num_chairs);
-
         pthread_cond_signal(&cond_barber);
+        print_status(id);
 
         while (barber_chair) {
             pthread_cond_wait(&cond_customer, &mutex);
         }
-
-        printf("Klient %d jest strzyżony.\n", id);
-        barber_chair = true;
     } else {
-        printf("Klient %d odchodzi, brak miejsca.\n", id);
+        enqueue(&resigned_queue, id);
         rezygnacje++;
+        print_status(id);
     }
 
     pthread_mutex_unlock(&mutex);
@@ -125,7 +142,7 @@ void* customer(void* arg) {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
+    if (argc < 2 || argc > 3) {
         printf("Podaj prawidłową liczbę argumentów!\n");
         return EXIT_FAILURE;
     }
@@ -136,11 +153,16 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    if (argc == 3 && strcmp(argv[2], "-info") == 0) {
+        print_info = true;
+    }
+
     pthread_t barber_thread;
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond_barber, NULL);
     pthread_cond_init(&cond_customer, NULL);
     queue_init(&waiting_queue);
+    queue_init(&resigned_queue);
 
     pthread_create(&barber_thread, NULL, barber, NULL);
 
@@ -151,8 +173,9 @@ int main(int argc, char** argv) {
         *id_ptr = customer_id;
         pthread_create(&customer_thread, NULL, customer, id_ptr);
         customer_id++;
-        busy_wait(rand() % MAX_ITERATIONS);
-        free(id_ptr); // zwolnienie pamięci alokowanej dla id
+
+        usleep((rand() % 100 + 1) * 1000); // Random delay between 0 and 100ms
+        free(id_ptr);
     }
 
     pthread_cancel(barber_thread);
