@@ -6,3 +6,5 @@
 void busy_wait(int iterations) {
     for (volatile int i = 0; i < iterations; i++);
 }
+
+busy_wait(rand() % MAX_ITERATIONS); // przykład użycia
