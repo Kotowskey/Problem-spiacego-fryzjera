@@ -2,36 +2,36 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <time.h>
-#include <math.h>
+#include <stdbool.h> //klasyczne pliki naglowkowe
+#include <time.h> //Do pseudolosowosci funkcji marnujacej czas
+#include <math.h> //Do funkcji marnującej czas
 
-#define MAX_ITERATIONS 10000
+#define MAX_ITERATIONS 10000 //Zmiana wartosci przyspieszy/spowolni przychodzenie klientow i czas strzyżenia
 
 pthread_mutex_t mutex;
 pthread_cond_t cond_barber;
-pthread_cond_t cond_customer;
+pthread_cond_t cond_customer; //mutexy
 
-int rezygnacje = 0;
-bool barber_chair = false;
-int num_chairs;
-bool print_info = false;
+int rezygnacje = 0; //Zmienna pomocnicza do sledzenia ilosci rezygnacji
+bool barber_chair = false; //Zmienna pomocnicza do sledzenia czy fryzjer pracuje
+int num_chairs; //Ilosc krzesel podawana przez uzytkownika przy uruchomieniu programu
+bool print_info = false; //Pomocnicze do spelnienia zalozen projektu
 int current_customer = -1; // Zmienna do przechowywania ID klienta aktualnie obsługiwanego
 
 typedef struct Node {
     int id;
     struct Node* next;
-} Node;
+} Node; //Struktura przechowujaca id aktualnego klienta
 
 typedef struct Queue {
     Node* front;
     Node* rear;
     int size;
-} Queue;
+} Queue; //Kolejka FIFO do prawidlowego wyswietlania komunikatow
 
 Queue waiting_queue;
 Queue resigned_queue;
-
+//Poniezej funkcje pomocnicze do kolejki FIFO
 void queue_init(Queue* q) {
     q->front = q->rear = NULL;
     q->size = 0;
@@ -93,7 +93,7 @@ void busy_wait(int iterations) {
         int sum = sqrt(i) / sin(i);
     }
 }
-
+//Obsluga fryzjera
 void* barber(void* arg) {
     while (1) {
         pthread_mutex_lock(&mutex);
@@ -109,19 +109,18 @@ void* barber(void* arg) {
         print_status();
         pthread_mutex_unlock(&mutex);
 
-        busy_wait(rand() % MAX_ITERATIONS);
+        busy_wait(rand() % MAX_ITERATIONS); //Fryzjer wykonuje swoja prace w pseudolosowym czasie
 
         pthread_mutex_lock(&mutex);
         printf("Fryzjer zakończył strzyżenie klienta %d.\n", current_customer);
         barber_chair = false;
-        current_customer = -1;
         pthread_cond_broadcast(&cond_customer);
         print_status();
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
 }
-
+//Obsluga klientow
 void* customer(void* arg) {
     int id = *(int*)arg;
     pthread_mutex_lock(&mutex);
