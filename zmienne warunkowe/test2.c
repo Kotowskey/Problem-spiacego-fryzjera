@@ -5,6 +5,7 @@
 #include <stdbool.h> //klasyczne pliki naglowkowe
 #include <time.h> //Do pseudolosowosci funkcji marnujacej czas
 #include <math.h> //Do funkcji marnującej czas
+#include <string.h>
 
 #define MAX_ITERATIONS 100000000 //Zmiana wartosci przyspieszy/spowolni przychodzenie klientow i czas strzyżenia
 
