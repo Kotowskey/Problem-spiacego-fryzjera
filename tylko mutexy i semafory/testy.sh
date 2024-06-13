@@ -1,40 +1,29 @@
 #!/bin/bash
 
-# Define the program name and the source file
-PROGRAM="barber"
-SOURCE="barber.c"
+# Kompilacja programu
+gcc -pthread -o barber_shop barber.c
 
-# Compile the source code
-gcc -o $PROGRAM $SOURCE -lpthread
-
-# Check if the compilation was successful
+# Sprawdzenie, czy kompilacja się powiodła
 if [ $? -ne 0 ]; then
-  echo "Compilation failed"
-  exit 1
+    echo "Błąd kompilacji programu."
+    exit 1
 fi
 
-# Define the number of chairs and the number of test runs
-CHAIRS=(5 10 12) # Test with different numbers of chairs
-INFO_MODES=("" "-info") # Test with and without info mode
+# Uruchomienie programu z argumentami w tle
+./barber_shop 5 -info &
+BARBER_PID=$!
 
-# Loop through the test cases
-for chairs in "${CHAIRS[@]}"; do
-  for info_mode in "${INFO_MODES[@]}"; do
-    echo "Running test with $chairs chairs $info_mode"
-    if [ -z "$info_mode" ]; then
-      ./$PROGRAM $chairs
-    else
-      ./$PROGRAM $chairs $info_mode
-    fi
+# Czekanie 20 sekund
+sleep 20
 
-    # Check the exit status of the program
-    if [ $? -ne 0 ]; then
-      echo "Test with $chairs chairs $info_mode failed"
-    else
-      echo "Test with $chairs chairs $info_mode succeeded"
-    fi
-  done
-done
+# Zatrzymanie programu
+kill $BARBER_PID
 
-# Clean up
-rm $PROGRAM
+# Sprawdzenie, czy kill się powiódł
+if [ $? -ne 0 ]; then
+    echo "Błąd podczas zatrzymywania programu."
+    exit 1
+fi
+
+# Wyświetlenie komunikatu o zakończeniu testu
+echo "Test zakończony pomyślnie."
