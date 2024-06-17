@@ -44,8 +44,15 @@ void print_info() {
 
 void* barber_thread(void* arg) {
     while (1) {
+        pthread_mutex_lock(&mutex);
+
+        if (waiting == 0) {
+            printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
+        }
+
+        pthread_mutex_unlock(&mutex);
         sem_wait(&customers); // Czekaj na klienta
-        printf("Fryzjer ucina sobie drzemkę i czeka na klienta\n");
+
         pthread_mutex_lock(&mutex);
 
         // Zajęcie klienta z poczekalni
@@ -69,6 +76,7 @@ void* barber_thread(void* arg) {
     }
     return NULL;
 }
+
 
 
 void* customer_thread(void* arg) {
